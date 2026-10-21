@@ -75,13 +75,42 @@ def known_executables():
     return result
 
 
-def known_model_stores():
+def offline_model_tags(store):
+    """Discover installed Ollama tags from local manifests; does not prove inference works."""
+    manifest_root = Path(store).expanduser() / 'manifests'
+    if not manifest_root.is_dir():
+        return []
+    names = set()
+    try:
+        for registry in manifest_root.iterdir():
+            if not registry.is_dir() or registry.is_symlink():
+                continue
+            for namespace in registry.iterdir():
+                if not namespace.is_dir() or namespace.is_symlink():
+                    continue
+                for model in namespace.iterdir():
+                    if not model.is_dir() or model.is_symlink():
+                        continue
+                    for tag in model.iterdir():
+                        if tag.is_file() and not tag.is_symlink():
+                            base = model.name if namespace.name == 'library' else namespace.name + '/' + model.name
+                            names.add(base + ':' + tag.name)
+    except OSError:
+        return []
+    return sorted(names)
+
+
+def known_model_stores(extra_paths=()):
     home = Path.home()
     legacy_models = paths().parent / 'PlaguesBluesSingerGenie' / 'ollama-models'
-    candidates = [app_models_dir(), legacy_models, home / '.ollama' / 'models']
-    env = os.environ.get('OLLAMA_MODELS')
-    if env:
-        candidates.insert(0, Path(env).expanduser())
+    candidates = [*extra_paths, app_models_dir(), legacy_models, home / '.ollama' / 'models',
+                  home / 'models', home / 'AI' / 'models', home / 'PlaguedAI' / 'models',
+                  home / '.cache' / 'huggingface' / 'hub',
+                  Path('/var/lib/gnb-ollama/models'), Path('/var/lib/gnb-song-audio/models')]
+    for env_name in ('OLLAMA_MODELS','GNB_MODEL_DIR','HF_HOME','HUGGINGFACE_HUB_CACHE'):
+        env = os.environ.get(env_name)
+        if env:
+            candidates.insert(0, Path(env).expanduser() / 'hub' if env_name == 'HF_HOME' else Path(env).expanduser())
     if os.name == 'nt':
         candidates.extend([Path(os.environ.get('USERPROFILE', str(home))) / '.ollama' / 'models',
                            Path(os.environ.get('LOCALAPPDATA', str(home / 'AppData' / 'Local'))) / 'PlaguedAI' / 'models' / 'ollama'])
@@ -91,9 +120,25 @@ def known_model_stores():
     for path in candidates:
         if str(path) not in seen and path.is_dir():
             # A store must have manifests or blobs to be considered discovered.
-            unique.append({'path': str(path), 'ollama_store': (path / 'manifests').is_dir() or (path / 'blobs').is_dir()})
+            is_ollama = (path / 'manifests').is_dir() or (path / 'blobs').is_dir()
+            tags = offline_model_tags(path) if is_ollama else []
+            # Non-Ollama GGUF caches can be imported, but are not Ollama-ready tags.
+            gguf = [] if is_ollama else [str(p) for p in path.glob('*.gguf') if p.is_file()][:20]
+            unique.append({'path': str(path), 'ollama_store': is_ollama,
+                           'models': tags, 'gguf': gguf, 'readable': os.access(path, os.R_OK),
+                           'writable': os.access(path, os.W_OK)})
             seen.add(str(path))
     return unique
+
+
+def check_ollama_api(url, timeout=5):
+    url = str(url).strip().rstrip('/')
+    if not url.startswith(('http://127.0.0.1:', 'http://localhost:', 'https://')):
+        raise ValueError('Use a localhost SSH tunnel or an HTTPS endpoint')
+    try:
+        return {'url': url, 'models': Ollama(url, timeout=timeout).models()}
+    except Exception as exc:
+        raise ConnectionError(f'Ollama is unreachable at {url}. Start Ollama, start the private runtime, or establish your server SSH tunnel. Details: {exc}') from exc
 
 
 def executable_version(executable):
@@ -181,6 +226,16 @@ def extract_verified_archive(archive, target, filename):
                     for m in tf:
                         if m.isdir():
                             continue
+                        if m.issym():
+                            # Official Linux releases may contain links inside lib/ollama.
+                            out = unpacked_path = target.joinpath(*_safe_member(m.name).parts)
+                            if os.path.isabs(m.linkname) or not m.linkname:
+                                raise ValueError('Archive contains an unsafe symlink')
+                            if not (out.parent / m.linkname).resolve(strict=False).is_relative_to(target.resolve()):
+                                raise ValueError('Archive symlink escapes target')
+                            out.parent.mkdir(parents=True, exist_ok=True)
+                            out.symlink_to(m.linkname)
+                            continue
                         if not m.isfile():
                             raise ValueError('Archive contains unsupported link or special file')
                         src = tf.extractfile(m)
@@ -256,26 +311,36 @@ class ManagedRuntime:
         env['OLLAMA_HOST'] = f'127.0.0.1:{self.port}'
         env['OLLAMA_MODELS'] = str(store.resolve())
         env['OLLAMA_NO_CLOUD'] = '1'
+        env['OLLAMA_KEEP_ALIVE'] = '0'
+        if os.name != 'nt':
+            env['OLLAMA_VULKAN'] = '1'
         env['PATH'] = str(p.parent) + os.pathsep + env.get('PATH', '')
         # Ollama's bundled Linux inference libraries live in lib/ollama.
         lib = p.parent.parent / 'lib' / 'ollama'
         if lib.is_dir() and os.name != 'nt':
             env['LD_LIBRARY_PATH'] = str(lib) + os.pathsep + env.get('LD_LIBRARY_PATH', '')
-        self.process = subprocess.Popen([str(p), 'serve'], env=env, stdout=subprocess.DEVNULL,
-                                        stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL)
+        self.log_path = paths() / 'managed-ollama.log'
+        self.log_handle = open(self.log_path, 'ab')
+        try:
+            self.process = subprocess.Popen([str(p), 'serve'], env=env, stdout=self.log_handle,
+                                            stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL)
+        except Exception:
+            self.log_handle.close()
+            self.log_handle = None
+            raise
         deadline = time.monotonic() + 35
         while time.monotonic() < deadline:
             if self.process.poll() is not None:
                 code = self.process.returncode
                 self.process = None
-                raise RuntimeError(f'Ollama exited during startup (status {code})')
+                raise RuntimeError(f'Ollama exited during startup (status {code}); inspect {self.log_path}')
             try:
                 Ollama(self.url, timeout=2).models()
                 return self.url
             except (ConnectionError, TimeoutError, urllib.error.URLError):
                 time.sleep(0.5)
         self.stop()
-        raise TimeoutError('Ollama did not respond on the managed local port')
+        raise TimeoutError(f'Ollama did not respond on the managed local port; inspect {self.log_path}')
 
     def stop(self):
         process, self.process = self.process, None
@@ -286,6 +351,9 @@ class ManagedRuntime:
             except subprocess.TimeoutExpired:
                 process.kill()
                 process.wait(timeout=5)
+        if getattr(self, 'log_handle', None) is not None:
+            self.log_handle.close()
+            self.log_handle = None
 
 
 def validate_model_name(name):
