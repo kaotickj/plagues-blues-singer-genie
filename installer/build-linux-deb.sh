@@ -22,7 +22,7 @@ Section: sound
 Priority: optional
 Architecture: ${arch}
 Maintainer: Kaotick Jay <noreply@github.com>
-Depends: libc6 (>= 2.35), libgl1, libegl1, libxkbcommon0, libxcb1, libxcb-cursor0
+Depends: libc6 (>= 2.35), libgl1, libegl1, libxkbcommon0, libxcb1, libxcb-cursor0, libxcb-shape0
 Description: Local-first blues and metal songwriting and music studio
  Desktop app featuring offline name creation, local model management,
  structured AI curation, Suno prompts and optional ACE-Step audio synthesis.

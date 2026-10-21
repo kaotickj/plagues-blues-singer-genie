@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from contextlib import contextmanager
+from contextlib import contextmanager, closing
 import os
 import random
 import re
@@ -42,8 +42,9 @@ def paths():
     db_target = root / 'library.sqlite3'
     if not db_target.exists() and db_source.is_file():
         # Backup includes committed WAL transactions. Previous DB remains unchanged.
-        with sqlite3.connect(str(db_source)) as old_db, sqlite3.connect(str(db_target)) as new_db:
-            old_db.backup(new_db)
+        with closing(sqlite3.connect(str(db_source))) as old_db, closing(sqlite3.connect(str(db_target))) as new_db:
+            with new_db:
+                old_db.backup(new_db)
     return root
 
 
