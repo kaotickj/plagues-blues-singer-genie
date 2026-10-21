@@ -1,0 +1,35 @@
+name: Windows installer
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pyinstaller
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Build Windows application
+        run: python -m PyInstaller --clean --noconfirm --windowed --name PlaguesBluesSingerGenie --onedir main.py
+      - name: Compile installer
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.9
+        with:
+          path: installer/setup.iss
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: PlaguesBluesSingerGenie-Windows-Installer
+          path: installer/output/*.exe
+          if-no-files-found: error
