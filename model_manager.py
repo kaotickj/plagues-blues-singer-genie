@@ -248,9 +248,11 @@ def extract_verified_archive(archive, target, filename):
 def install_managed_runtime(on_progress=None):
     """Install official SHA-256 verified Ollama release in user app-data."""
     report = on_progress or (lambda _: None)
+    home = app_runtime_dir()
+    if home.exists():
+        raise FileExistsError(f'Ollama runtime already installed: {home}. Select the existing executable instead of downloading it again.')
     url, expected, filename = release_asset()
     report(f'Downloading official Ollama package: {filename}; may exceed 1 GB')
-    home = app_runtime_dir()
     home.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=home.parent) as temp:
         temp_path = Path(temp)
