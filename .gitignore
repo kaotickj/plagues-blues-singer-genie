@@ -7,3 +7,4 @@ dist/
 *.spec
 installer/output/
 .pytest_cache/
+installer/output-linux/

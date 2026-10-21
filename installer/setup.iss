@@ -1,5 +1,5 @@
 #define AppName "Plague's Blues Singer Genie"
-#define AppVersion "0.1.0"
+#define AppVersion "0.1.1"
 #define AppExe "PlaguesBluesSingerGenie.exe"
 [Setup]
 AppId={{BE126C53-2C23-4CC8-BC1B-FBFA92E22B9C}

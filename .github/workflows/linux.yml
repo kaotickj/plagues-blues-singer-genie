@@ -1,0 +1,54 @@
+name: Linux installer
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  debian-package:
+    name: Debian / Ubuntu (.deb)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install desktop runtime libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libegl1 libgl1 libxkbcommon0 libxkbcommon-x11-0 \
+            libxcb-cursor0 libxcb-icccm4 libxcb-image0 \
+            libxcb-keysyms1 libxcb-randr0 libxcb-render-util0
+      - name: Install Python build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pyinstaller
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Build Linux executable
+        run: python -m PyInstaller --clean --noconfirm --windowed --name PlaguesBluesSingerGenie --onedir main.py
+      - name: Headless application smoke test
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: ./dist/PlaguesBluesSingerGenie/PlaguesBluesSingerGenie --smoke-test
+      - name: Build Debian installer
+        env:
+          APP_VERSION: '0.1.1'
+        run: bash installer/build-linux-deb.sh
+      - name: Inspect installer contents
+        run: |
+          dpkg-deb --info installer/output-linux/*.deb
+          dpkg-deb --contents installer/output-linux/*.deb | grep -E 'usr/bin/plagues-blues-singer-genie|usr/share/applications/plagues-blues-singer-genie.desktop'
+      - name: Upload Linux installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: PlaguesBluesSingerGenie-Linux-DEB
+          path: installer/output-linux/*.deb
+          if-no-files-found: error
+          retention-days: 30

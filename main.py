@@ -37,7 +37,7 @@ class MainWindow(QMainWindow):
         self.settings = load_settings()
         self.pool = QThreadPool.globalInstance()
         self.workers = []
-        self.setWindowTitle("Plague's Blues Singer Genie · v0.1.0")
+        self.setWindowTitle("Plague's Blues Singer Genie · v0.1.1")
         self.resize(1150, 770)
         self.tabs = QTabWidget()
         self.setCentralWidget(self.tabs)
@@ -261,6 +261,9 @@ def main():
         QTabBar::tab:selected { background: #a86d36; color: #111; }
     """)
     window = MainWindow()
+    if "--smoke-test" in sys.argv:
+        window.close()
+        return
     window.show()
     sys.exit(app.exec())
 
