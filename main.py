@@ -1,5 +1,6 @@
 """Plague's Music Studio, local-first multi-genre creation suite."""
 import sys
+import os
 import hashlib
 from pathlib import Path
 
@@ -7,12 +8,12 @@ from PyQt6.QtCore import QObject, QRunnable, Qt, QThreadPool, pyqtSignal
 from PyQt6.QtWidgets import (
     QApplication, QComboBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel,
     QLineEdit, QListWidget, QMainWindow, QMessageBox, QPushButton, QSpinBox,
-    QSplitter, QTabWidget, QTextEdit, QVBoxLayout, QWidget, QFileDialog, QCheckBox,
+    QSplitter, QTabWidget, QTextEdit, QVBoxLayout, QWidget, QFileDialog, QCheckBox, QScrollArea, QListWidgetItem,
 )
 
 from blues_core import STYLES, Library, Ollama, load_settings, save_settings, paths
 from name_engine import NameBank, GENDERS, KINDS
-from model_manager import (ManagedRuntime, app_models_dir, known_executables, known_model_stores,
+from model_manager import (ManagedRuntime, app_models_dir, known_executables, known_model_stores, offline_model_tags, check_ollama_api,
                            executable_version, install_managed_runtime, import_local_gguf,
                            pull_model, verify_model)
 from curation import ROLES, run_curation
@@ -25,17 +26,19 @@ from genre_presets import make_variation, variation_prompt, canonical_genre, is_
 class Signals(QObject):
     done = pyqtSignal(object)
     error = pyqtSignal(str)
+    progress = pyqtSignal(str)
 
 
 class Work(QRunnable):
-    def __init__(self, function):
+    def __init__(self, function, with_progress=False):
         super().__init__()
         self.function = function
+        self.with_progress = with_progress
         self.signals = Signals()
 
     def run(self):
         try:
-            self.signals.done.emit(self.function())
+            self.signals.done.emit(self.function(self.signals.progress.emit) if self.with_progress else self.function())
         except Exception as exc:
             self.signals.error.emit(str(exc))
 
@@ -199,12 +202,30 @@ class MainWindow(QMainWindow):
         layout.addStretch()
         self.tabs.addTab(tab, "AI Settings")
 
-    def busy(self, work, callback):
-        worker = Work(work)
-        worker.signals.done.connect(lambda output: (self.statusBar().showMessage("Ready"), callback(output), self.workers.remove(worker)))
-        worker.signals.error.connect(lambda err: (self.statusBar().showMessage("Error"), QMessageBox.warning(self, "Generation failed", err), self.workers.remove(worker)))
+    def busy(self, work, callback, *, log=None, with_progress=False):
+        worker = Work(work, with_progress=with_progress)
+        if log is not None:
+            worker.signals.progress.connect(log)
+        def completed(result):
+            try:
+                self.statusBar().showMessage("Ready")
+                callback(result)
+            finally:
+                if worker in self.workers:
+                    self.workers.remove(worker)
+        def failed(message):
+            try:
+                self.statusBar().showMessage("Operation failed")
+                if log is not None:
+                    log("ERROR: " + message)
+                QMessageBox.warning(self, "Operation failed", message)
+            finally:
+                if worker in self.workers:
+                    self.workers.remove(worker)
+        worker.signals.done.connect(completed)
+        worker.signals.error.connect(failed)
         self.workers.append(worker)
-        self.statusBar().showMessage("Working with the local model...")
+        self.statusBar().showMessage("Working...")
         self.pool.start(worker)
 
     def selected_model(self):
@@ -222,14 +243,14 @@ class MainWindow(QMainWindow):
         def display(models):
             previous = self.selected_model()
             self.model.clear(); self.model.addItems(models)
-            if previous: self.model.setCurrentText(previous)
+            if previous in models: self.model.setCurrentText(previous)
             for role, combo in self.role_models.items():
                 existing = combo.currentText()
                 combo.clear(); combo.addItems(models)
-                if existing: combo.setCurrentText(existing)
+                if existing in models: combo.setCurrentText(existing)
                 elif models: combo.setCurrentText(models[0])
             self.connection_status.setText(f"Connected. Found {len(models)} model(s): {', '.join(models) or '(none)'}")
-        self.busy(lambda: Ollama(url, timeout=15).models(), display)
+        self.busy(lambda: check_ollama_api(url, timeout=15)['models'], display, log=self.log_manager)
 
     def generate_names(self):
         try:
@@ -426,91 +447,200 @@ class MainWindow(QMainWindow):
 
     def init_model_manager(self):
         tab, layout = self.panel()
-        layout.addWidget(QLabel("Locate, verify, install and use existing or brand-new Ollama installations and GGUF models."))
-        self.runtime_list = QListWidget(); self.runtime_list.setMaximumHeight(125); layout.addWidget(self.runtime_list)
-        self.stores_list = QListWidget(); self.stores_list.setMaximumHeight(105); layout.addWidget(self.stores_list)
-        buttons = QHBoxLayout()
-        buttons.addWidget(self.button("Locate runtimes and model stores", self.locate_models))
-        buttons.addWidget(self.button("Install verified Ollama (user space)", self.install_ollama))
-        layout.addLayout(buttons)
-        buttons = QHBoxLayout()
-        buttons.addWidget(self.button("Start private managed Ollama", self.start_ollama))
-        buttons.addWidget(self.button("Stop managed Ollama", self.stop_ollama))
-        layout.addLayout(buttons)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        widget = QWidget()
+        box = QVBoxLayout(widget)
+        box.addWidget(QLabel("Discover existing models here or connect to an Ollama service over SSH. Ollama model files are not the same as running models."))
+        box.addWidget(QLabel("Ollama executables on this computer:"))
+        self.runtime_list = QListWidget()
+        self.runtime_list.setMaximumHeight(105)
+        box.addWidget(self.runtime_list)
+        box.addWidget(QLabel("Available model directories (select an Ollama store for the private runtime):"))
+        self.stores_list = QListWidget()
+        self.stores_list.setMaximumHeight(145)
+        box.addWidget(self.stores_list)
+        row = QHBoxLayout()
+        row.addWidget(self.button("Find models and runtimes", self.locate_models))
+        row.addWidget(self.button("Choose model directory...", self.choose_model_directory))
+        box.addLayout(row)
+        row = QHBoxLayout()
+        row.addWidget(self.button("Install verified Ollama", self.install_ollama))
+        row.addWidget(self.button("Start Ollama with selected models", self.start_ollama))
+        row.addWidget(self.button("Stop private Ollama", self.stop_ollama))
+        box.addLayout(row)
+        row = QHBoxLayout()
+        row.addWidget(self.button("Connect to configured Ollama URL", self.connect_existing_ollama))
+        row.addWidget(self.button("Try default localhost:11434", self.connect_default_ollama))
+        box.addLayout(row)
         form = QFormLayout()
-        self.pull_name = QLineEdit(); self.pull_name.setPlaceholderText("e.g. qwen3:4b or gemma3:4b")
-        self.gguf_path = QLineEdit(); self.gguf_path.setPlaceholderText("Existing GGUF file on this computer")
-        self.import_name = QLineEdit(); self.import_name.setPlaceholderText("Name for imported GGUF model")
+        self.pull_name = QLineEdit()
+        self.pull_name.setPlaceholderText("qwen3:4b or gemma3:4b")
+        self.gguf_path = QLineEdit()
+        self.gguf_path.setPlaceholderText("Existing local GGUF file")
+        self.import_name = QLineEdit()
+        self.import_name.setPlaceholderText("name:tag")
         form.addRow("Model to download", self.pull_name)
-        form.addRow("Local GGUF file", self.gguf_path)
-        form.addRow("Import as", self.import_name)
-        layout.addLayout(form)
-        buttons = QHBoxLayout()
-        buttons.addWidget(self.button("Download model", self.pull_new_model))
-        buttons.addWidget(self.button("Verify selected model", self.verify_selected_model))
-        buttons.addWidget(self.button("Browse GGUF...", self.pick_gguf))
-        buttons.addWidget(self.button("Import GGUF", self.import_gguf))
-        layout.addLayout(buttons)
-        self.runtime_log = QTextEdit(); self.runtime_log.setReadOnly(True); layout.addWidget(self.runtime_log)
-        layout.addWidget(QLabel("App-managed Ollama runs on loopback port 11535, with its own model store. It never replaces system Ollama."))
+        form.addRow("GGUF to import", self.gguf_path)
+        form.addRow("Import model name", self.import_name)
+        box.addLayout(form)
+        row = QHBoxLayout()
+        row.addWidget(self.button("Download model", self.pull_new_model))
+        row.addWidget(self.button("Verify selected model", self.verify_selected_model))
+        row.addWidget(self.button("Browse GGUF...", self.pick_gguf))
+        row.addWidget(self.button("Import GGUF", self.import_gguf))
+        box.addLayout(row)
+        self.runtime_log = QTextEdit()
+        self.runtime_log.setReadOnly(True)
+        self.runtime_log.setMinimumHeight(150)
+        box.addWidget(self.runtime_log)
+        box.addWidget(QLabel("App-managed Ollama runs at http://127.0.0.1:11535. Remote Goodneighbor models require a working server connection, not filesystem scanning."))
+        scroll.setWidget(widget)
+        layout.addWidget(scroll)
         self.tabs.addTab(tab, "Model Manager")
+        self.extra_model_paths = []
         self.locate_models()
 
     def log_manager(self, message):
         self.runtime_log.append(str(message))
 
-    def locate_models(self):
-        self.runtime_list.clear(); self.stores_list.clear()
-        for p in known_executables():
-            self.runtime_list.addItem(str(p))
-        for item in known_model_stores():
-            self.stores_list.addItem(item['path'] + ('  (Ollama store)' if item['ollama_store'] else ''))
-        self.log_manager(f"Found {self.runtime_list.count()} Ollama executable(s), {self.stores_list.count()} model store(s).")
+    def chosen_store(self):
+        item = self.stores_list.currentItem()
+        return item.data(Qt.ItemDataRole.UserRole) if item else None
 
-    def install_ollama(self):
-        if QMessageBox.question(self, "Install Ollama", "Download the official SHA-256-verified Ollama runtime to your user account? It may exceed 1 GB.") != QMessageBox.StandardButton.Yes:
-            return
-        self.busy(lambda: install_managed_runtime(), lambda path: (self.log_manager('Installed at '+path), self.locate_models()))
+    def choose_model_directory(self):
+        chosen = QFileDialog.getExistingDirectory(self, "Choose model directory", str(Path.home()))
+        if chosen:
+            if chosen not in self.extra_model_paths:
+                self.extra_model_paths.insert(0, chosen)
+            self.locate_models(chosen)
+
+    def locate_models(self, preferred=None):
+        wanted = preferred if isinstance(preferred,str) else self.chosen_store()
+        self.runtime_list.clear()
+        self.stores_list.clear()
+        for executable in known_executables():
+            self.runtime_list.addItem(str(executable))
+        for info in known_model_stores(self.extra_model_paths):
+            tags = info.get('models',[])
+            gguf = info.get('gguf',[])
+            label = f"{info['path']} (Ollama: {len(tags)} tags, GGUF: {len(gguf)} files)"
+            if not info['readable']:
+                label += " [permission denied]"
+            item = QListWidgetItem(label)
+            item.setData(Qt.ItemDataRole.UserRole, info['path'])
+            item.setToolTip("\n".join((tags+gguf)[:30]) or "No recognized model manifests; this could be a different model format.")
+            self.stores_list.addItem(item)
+            if wanted == info['path']:
+                self.stores_list.setCurrentItem(item)
+            if tags:
+                self.log_manager(f"Offline Ollama manifests at {info['path']}: {', '.join(tags[:15])}")
+                for model_name in tags:
+                    if self.model.findText(model_name)<0:
+                        self.model.addItem(model_name)
+            if gguf and not self.gguf_path.text():
+                self.gguf_path.setText(gguf[0])
+        self.log_manager(f"Detected {self.runtime_list.count()} runtime(s), {self.stores_list.count()} model store(s).")
+        if not self.stores_list.count():
+            self.log_manager("No local models found. Browse a folder or connect to Ollama running on the server.")
+        if not self.runtime_list.count():
+            self.log_manager("No local Ollama binary found. Install a managed runtime, or connect to a running Docker/server instance.")
 
     def selected_executable(self):
         item = self.runtime_list.currentItem()
         return item.text() if item else (str(known_executables()[0]) if known_executables() else '')
 
+    def install_ollama(self):
+        if QMessageBox.question(self, "Install Ollama", "Download the official SHA-256 verified Ollama runtime into your user directory? May exceed 1 GB.") != QMessageBox.StandardButton.Yes:
+            return
+        self.log_manager("Starting verified Ollama download...")
+        def installed(path):
+            self.log_manager("Installed Ollama: " + path)
+            self.locate_models()
+            for i in range(self.runtime_list.count()):
+                if self.runtime_list.item(i).text() == path:
+                    self.runtime_list.setCurrentRow(i)
+                    break
+            self.start_ollama()
+        self.busy(lambda progress: install_managed_runtime(progress), installed,
+                  log=self.log_manager, with_progress=True)
+
+    def connect_existing_ollama(self):
+        url = self.endpoint.text().strip()
+        def connected(result):
+            self.log_manager(f"Connected to {result['url']}: {len(result['models'])} model(s)")
+            self.refresh_models()
+        self.busy(lambda: check_ollama_api(url), connected, log=self.log_manager)
+
+    def connect_default_ollama(self):
+        self.endpoint.setText("http://127.0.0.1:11434")
+        self.connect_existing_ollama()
+
     def start_ollama(self):
         exe = self.selected_executable()
         if not exe:
-            QMessageBox.information(self,"No Ollama", "Install or locate an Ollama executable first."); return
+            QMessageBox.warning(self, "Ollama required", "No local Ollama executable. Install it, or connect to your existing server.")
+            return
+        store = self.chosen_store() or str(app_models_dir())
+        if not self.chosen_store():
+            Path(store).mkdir(parents=True, exist_ok=True)
+        if self.chosen_store() and not ((Path(store)/'manifests').is_dir() or (Path(store)/'blobs').is_dir()):
+            QMessageBox.warning(self, "Not an Ollama store", "That directory holds other model formats. Import a GGUF or select a real Ollama model store.")
+            return
+        if not os.access(store,os.W_OK):
+            QMessageBox.warning(self, "Model permissions", f"Cannot write to {store}. Connect to the existing system/Docker Ollama API or choose a writable store.")
+            return
+        self.log_manager(f"Starting {exe} with models in {store}")
         def ready(url):
-            self.endpoint.setText(url); self.log_manager('Managed runtime running at '+url); self.refresh_models()
-        self.busy(lambda: self.managed_runtime.start(exe), ready)
+            self.endpoint.setText(url)
+            self.log_manager("Private Ollama ready: " + url)
+            self.refresh_models()
+        self.busy(lambda: self.managed_runtime.start(exe,store), ready, log=self.log_manager)
 
     def stop_ollama(self):
-        self.managed_runtime.stop(); self.log_manager('Managed runtime stopped.')
+        self.managed_runtime.stop()
+        self.log_manager("Stopped only the private Ollama process; system and Docker processes are untouched.")
 
     def pull_new_model(self):
         name = self.pull_name.text().strip()
         url = self.endpoint.text().strip()
-        if not name or QMessageBox.question(self,"Download model",f"Download {name} into the selected Ollama server's model store? (Model size may be large)") != QMessageBox.StandardButton.Yes:
+        if not name:
+            QMessageBox.warning(self, "Model required", "Enter a model tag, such as qwen3:4b.")
             return
-        self.busy(lambda: pull_model(url,name), lambda models: (self.log_manager('Downloaded '+name),self.refresh_models()))
+        if QMessageBox.question(self,"Download model",f"Pull {name} to {url}? This could require several GB of storage.") != QMessageBox.StandardButton.Yes:
+            return
+        self.log_manager(f"Downloading {name} from Ollama at {url}")
+        self.busy(lambda progress: pull_model(url,name,progress),
+                  lambda models: (self.log_manager("Downloaded model: "+name), self.refresh_models()),
+                  log=self.log_manager, with_progress=True)
 
     def verify_selected_model(self):
+        if not self.selected_model():
+            QMessageBox.warning(self,"Select model","Choose a model in AI Settings first.")
+            return
         self.busy(lambda: verify_model(self.endpoint.text().strip(),self.selected_model()),
-                  lambda result: self.log_manager('Verified model: '+str(result)))
+                  lambda result: self.log_manager("Verified model: "+str(result)),log=self.log_manager)
 
     def pick_gguf(self):
         path, _ = QFileDialog.getOpenFileName(self, "Locate a GGUF model", str(Path.home()), "GGUF Models (*.gguf)")
-        if path: self.gguf_path.setText(path)
+        if path:
+            self.gguf_path.setText(path)
 
     def import_gguf(self):
         exe = self.selected_executable()
         if not exe:
-            QMessageBox.warning(self,"No Ollama", "Locate Ollama first."); return
-        url=self.endpoint.text().strip(); src=self.gguf_path.text().strip(); name=self.import_name.text().strip()
-        if QMessageBox.question(self,"Import model",f"Import {Path(src).name} as {name} into the selected Ollama instance?") != QMessageBox.StandardButton.Yes:
+            QMessageBox.warning(self,"Ollama client needed","Install Ollama first to import a local GGUF. Existing server models only require a connection.")
+            return
+        url = self.endpoint.text().strip()
+        src = self.gguf_path.text().strip()
+        name = self.import_name.text().strip()
+        if not src or not name:
+            QMessageBox.warning(self,"Model details required","Choose a GGUF file and enter an import name.")
+            return
+        if QMessageBox.question(self,"Import model",f"Import {Path(src).name} as {name} into {url}?") != QMessageBox.StandardButton.Yes:
             return
         self.busy(lambda: import_local_gguf(url,exe,src,name),
-                  lambda info: (self.log_manager('Imported '+str(info)),self.refresh_models()))
+                  lambda info: (self.log_manager("Imported "+str(info)),self.refresh_models()),log=self.log_manager)
 
     def init_audio(self):
         tab,layout=self.panel()
