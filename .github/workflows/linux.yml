@@ -39,7 +39,7 @@ jobs:
         run: ./dist/PlaguesMusicStudio/PlaguesMusicStudio --smoke-test
       - name: Build Debian installer
         env:
-          APP_VERSION: '0.3.0'
+          APP_VERSION: '0.3.1'
         run: bash installer/build-linux-deb.sh
       - name: Inspect installer contents
         run: |

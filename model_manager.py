@@ -26,7 +26,7 @@ from pathlib import Path, PurePosixPath
 from blues_core import Ollama, paths
 
 API_RELEASE = 'https://api.github.com/repos/ollama/ollama/releases/latest'
-USER_AGENT = 'PlaguesMusicStudio/0.3.0'
+USER_AGENT = 'PlaguesMusicStudio/0.3.1'
 MANAGED_PORT = 11535
 MAX_ARCHIVE = 4 * 1024**3
 MODEL_NAME = re.compile(r'^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$')

@@ -1,6 +1,6 @@
 # Plague's Music Studio
 
-**Plague's Music Studio** is a local-first, Python/PyQt6 application for composing, curating and producing **original blues and metal**. Version **0.3.0** adds genre-specific writing directions and generation-history controls. No cloud AI API subscription is required.
+**Plague's Music Studio** is a local-first, Python/PyQt6 application for composing, curating and producing **original blues and metal**. Version **0.3.1** adds genre-specific writing directions and generation-history controls. No cloud AI API subscription is required.
 
 ## Genre presets
 
@@ -52,7 +52,7 @@ Both GitHub Actions workflows run the unit tests. Linux additionally smoke-tests
 Install the Linux artifact after extracting the GitHub Actions ZIP:
 
 ```bash
-sudo apt install ./plagues-music-studio_0.3.0_amd64.deb
+sudo apt install ./plagues-music-studio_0.3.1_amd64.deb
 plagues-music-studio
 ```
 

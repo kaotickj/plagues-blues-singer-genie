@@ -57,7 +57,7 @@ class MainWindow(QMainWindow):
         self.settings = load_settings()
         self.pool = QThreadPool.globalInstance()
         self.workers = []
-        self.setWindowTitle("Plague's Music Studio · v0.3.0")
+        self.setWindowTitle("Plague's Music Studio · v0.3.1")
         self.resize(1150, 770)
         self.tabs = QTabWidget()
         self.setCentralWidget(self.tabs)
