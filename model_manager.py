@@ -118,6 +118,7 @@ def known_model_stores(extra_paths=()):
         candidates.extend([Path('/usr/share/ollama/.ollama/models'), Path('/var/lib/ollama/.ollama/models')])
     unique, seen = [], set()
     for path in candidates:
+        path = Path(path).expanduser()
         if str(path) not in seen and path.is_dir():
             # A store must have manifests or blobs to be considered discovered.
             is_ollama = (path / 'manifests').is_dir() or (path / 'blobs').is_dir()
