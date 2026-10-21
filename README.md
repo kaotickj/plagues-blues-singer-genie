@@ -1,77 +1,75 @@
-# Plague's Blues Singer Genie
+# Plague's Music Studio
 
-A local-first, fictional blues artist development studio for **real-world blues**, powered by Python and PyQt6.
+**Plague's Music Studio** is a local-first, Python/PyQt6 application for composing, curating and producing **original blues and metal**. Version **0.3.0** adds genre-specific writing directions and generation-history controls. No cloud AI API subscription is required.
 
-## Version 0.1.1
+## Genre presets
 
-- Generate original blues stage-name suggestions **offline**, including presentation and genre controls.
-- Discover installed Ollama **text** models at runtime, including Gemma 3 / Qwen 3 if they are loaded by your Ollama server.
-- Generate AI stage names, artist biographies, consistent artist style guides, album concepts (including a three-album batch), original song lyrics, Suno production prompts, and promotional copy.
-- Save artists, biographies, and generated drafts to a local SQLite library.
-- Edit generated text before saving. Persistent settings live in the user's app-data directory.
-- GitHub Actions builds Windows (Inno Setup) and Linux (Debian `.deb`) installers.
+The **Genre / Style** selector includes:
 
-## Quick start
+- **Blues** (general), **Swamp Blues**, **Delta Blues**, **Chicago Blues**, **Whiskey Blues**, **Smoky Blues**.
+- **Metal** (general), **Swamp Metal**, **Death Metal**, **Glam Metal**, **Hair Metal**.
+
+Each preset defines appropriate BPM ranges, grooves, instrumental combinations, lead-vocal delivery, arrangement approaches, studio-production ideas, exclusions and stylistic rules. They are boundaries rather than rigid formulas: **Shuffle creative direction** selects a new story seed, narrative perspective, concrete detail, tempo, groove, instrument palette, vocal character, arrangement and recording approach. Artist-specific variation history is saved in SQLite to avoid repeating the most recent themes/grooves/arrangements. The creative brief can override these suggestions. The software cannot guarantee absolute originality or similarity avoidance; human review remains necessary.
+
+For **Swamp Blues**, a recognizable *jaw harp* remains in the chosen instrumentation, but other textures rotate. For **Death Metal**, the model receives harsh-vocal and rhythmic vocabulary, and the independent critic checks metal authenticity rather than blues metrics.
+
+## Features
+
+- **Stage Name Lab:** offline SQLite-based weighted name components and scripted permutations; edit entries and template patterns in the Word Bank, now including a starting metal-oriented vocabulary. No model required.
+- **Songwriting & Albums:** artist biographies, style guides, album concepts, three-album planning, complete tagged lyrics, Suno-style prompts and website promotional copy.
+- **Four-role local AI curation:** Research (model knowledge only), Draft, Edit and Audit. Assign local Ollama models independently per role. A scored genre-specific quality gate revises the draft up to the configured limit. Failed audits are not approved for audio production.
+- **Suno Custom Mode:** separately copy **Tagged Lyrics**, **Style of Music**, and **Exclude Styles**. The section/delivery instructions in brackets go inside the lyrics field. Suno may not interpret every bracketed cue deterministically.
+- **Music Production:** when separately installed, connect to ACE-Step via a local/private server API or to the Goodneighbor Blues `ace-lm`/`ace-synth` Vulkan CLI; export generated music and vocals to MP3, WAV, FLAC, OGG or M4A with separately installed FFmpeg and FFprobe. A successful model connection and render are required; merely discovering model weights does not confirm a working engine.
+- **Model Manager:** locate local Ollama model stores and executables, download a checksum-verified runtime with confirmation, run an isolated loopback-only instance, discover/verify/pull text models, and import existing GGUF models. This does not install every third-party audio backend automatically.
+
+## Install from source
+
+Python 3.12 or later is recommended. On Debian:
 
 ```bash
-python -m venv .venv
-# Windows: .venv\Scripts\activate
-# Linux: source .venv/bin/activate
+sudo apt install python3-venv libegl1 libgl1 libxkbcommon0 libxcb-cursor0
+python3 -m venv .venv
+source .venv/bin/activate
 python -m pip install -r requirements.txt
 python main.py
 ```
 
-Start Ollama on the machine actually hosting your language models. Open **AI Settings**, enter an Ollama base URL (default `http://127.0.0.1:11434`), choose **Discover installed Ollama models**, then select a **text** model. `ollama list` is a useful way to check what actually runs. The app connects via `/api/tags` and `/api/generate`; it does **not** read model cache folders or install/delete models. Offline stage-name generation works without Ollama.
-
-Your Chatterbox, Qwen3-TTS, IndexTTS, Kokoro and ACE-Step directories are **not** Ollama text models. Voice and music model execution are intentionally **not implemented in v0.1.1**. This keeps the Windows installer lightweight and avoids bundling GPU frameworks. Future integrations can use dedicated local services.
-
-## Linux installer (Debian / Ubuntu)
-
-The `Linux installer` workflow builds a native `.deb` on Ubuntu 22.04 for x86-64 Linux, runs six unit tests, smoke-tests the PyQt6 app using Qt's offscreen plugin, and uploads the installable package as the `PlaguesBluesSingerGenie-Linux-DEB` Actions artifact. On Debian 13 or Ubuntu, download the artifact and install:
+On Windows, create a Python virtual environment, install `requirements.txt`, and launch `python main.py`. For **Ollama**, the default API is `http://127.0.0.1:11434`. When the model engine is hosted on your Goodneighbor Blues Linux server, prefer an SSH tunnel rather than publishing model APIs on the LAN or internet:
 
 ```bash
-sudo apt install ./plagues-blues-singer-genie_0.1.1_amd64.deb
-plagues-blues-singer-genie
+ssh -N -L 11435:127.0.0.1:11434 YOUR_GOODNEIGHBOR_SSH_ALIAS
 ```
 
-You can also launch it from the application menu. Remove with `sudo apt remove plagues-blues-singer-genie`. Your local SQLite data is stored in `~/.local/share/PlaguesBluesSingerGenie/` and survives an uninstall. Model weights are **not bundled**.
+Set the studio's Ollama URL to `http://127.0.0.1:11435`. The historical Windows `PlaguedAI` model paths belong to the original main PC, **not** the Linux server. For production use, verify server-side model locations and permissions instead of assuming path equivalence.
 
-To build the Linux installer locally after PyInstaller has produced `dist/PlaguesBluesSingerGenie/`:
+## Installers: Windows and Linux
+
+Both GitHub Actions workflows run the unit tests. Linux additionally smoke-tests the frozen GUI headlessly and creates a `.deb` using native Debian packaging tools. Windows produces a PyInstaller executable with an Inno Setup installer. Neither installer bundles Ollama weights, ACE-Step binaries, or FFmpeg; users may install/locate them with the Model Manager or configure separate services.
+
+- [Windows installer workflow](https://github.com/kaotickj/plagues-blues-singer-genie/actions/workflows/windows.yml)
+- [Linux `.deb` installer workflow](https://github.com/kaotickj/plagues-blues-singer-genie/actions/workflows/linux.yml)
+
+Install the Linux artifact after extracting the GitHub Actions ZIP:
 
 ```bash
-python -m pip install -r requirements.txt pyinstaller
-python -m PyInstaller --clean --noconfirm --windowed --name PlaguesBluesSingerGenie --onedir main.py
-APP_VERSION=0.1.1 bash installer/build-linux-deb.sh
+sudo apt install ./plagues-music-studio_0.3.0_amd64.deb
+plagues-music-studio
 ```
 
-## Connecting the Goodneighbor Blues model server
+The GitHub repository's existing URL remains `kaotickj/plagues-blues-singer-genie` until its owner renames the repository; **application and package branding** have changed independently.
 
-The Windows paths under `C:\\Users\\...\\AppData\\Local\\PlaguedAI\\models` are from your **main PC**, not your Linux server. Previously recorded Goodneighbor Blues paths such as `/home/goodneighborblues/site-staging` refer to **website deployment**, not a verified Linux model directory. The actual server-side model root and live Ollama endpoint were not established in earlier chats.
+## Data preservation on upgrade
 
-The app connects through Ollama's API, so it needs **the Ollama endpoint, not the weight-file directory**. Keep the endpoint private. When Ollama is installed on a separate Linux host and running on loopback, run this on your desktop (substitute the SSH alias that works on that desktop):
+The new local data directory is `PlaguesMusicStudio` under `%LOCALAPPDATA%` (Windows) or `~/.local/share/` (Linux). On first run, if the new files don't exist, the app copies previous settings and uses SQLite backup to migrate the existing `PlaguesBluesSingerGenie/library.sqlite3`. It leaves original files untouched. Preserve a copy of your library before reinstalling, especially if the application was configured with custom locations.
 
-```bash
-ssh -N -L 11434:127.0.0.1:11434 YOUR_SSH_HOST_ALIAS
-```
+## Safety and commercial use
 
-Then set `http://127.0.0.1:11434` in AI Settings and click **Discover installed Ollama models**. If local port 11434 is in use, use `-L 11435:127.0.0.1:11434` and set the app URL to `http://127.0.0.1:11435`. On the model server, inspect its actual setup with `ollama list`, `systemctl status ollama`, and `systemctl show ollama -p Environment`. Do not publish port 11434 to the internet.
+Generated identities and biographies are fictional. Review outputs for prior song similarity, trademark conflicts, appropriate rights and model restrictions before release. All local AI model calls send prompts to the configured endpoint. Do not expose unauthenticated model APIs directly. Review the [MIT license](LICENSE) and [third-party licensing notes](THIRD_PARTY_NOTICES.md); PyQt6 and optional model weights have separate terms. A project's MIT source-code license does not relicense third-party code or model weights.
 
-## Windows builds
-
-Every push to `main` runs tests and packages the app on `windows-latest`. Download the `PlaguesBluesSingerGenie-Windows-Installer` artifact from the successful **Windows installer** Actions run. The built installer is not published as a GitHub Release automatically. Model weights are never bundled.
-
-## Artist consistency
-
-Save a stage name from **Stage Name Lab**. Select the saved artist in **Artist & Album Studio** when creating biographies, style guides, albums and lyrics. Saved biographies are included in subsequent creative prompts. Save changed biographies with **Save artist biography** and other work with **Save to library**. The library is local to the application.
-
-## Scope and cautions
-
-Every generated identity is intended to be fictional. Check stage-name availability, trademarks and similarity to real artists before commercial release. Generated narratives are not claims about real performers. Prompts go only to the configured Ollama endpoint, which can be remote if you explicitly enter a remote URL. Review and edit model outputs before publishing.
-
-## Tests
+To run tests:
 
 ```bash
 python -m unittest discover -s tests -v
 ```
 
-License: MIT. This project does not contain or redistribute any model weights.
+Sponsorship details are in `.github/FUNDING.yml`.

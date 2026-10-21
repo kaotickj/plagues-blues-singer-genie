@@ -6,6 +6,7 @@ from contextlib import contextmanager
 import os
 import random
 import re
+import shutil
 import sqlite3
 import urllib.error
 import urllib.request
@@ -13,8 +14,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-APP_NAME = "PlaguesBluesSingerGenie"
-STYLES = ["Chicago Electric", "Delta", "Texas", "Memphis", "Piedmont", "Swamp", "Jump Blues", "Soul Blues", "Acoustic", "Contemporary"]
+APP_NAME = "PlaguesMusicStudio"
+LEGACY_APP_NAME = "PlaguesBluesSingerGenie"
+from genre_presets import genre_names, variation_prompt, make_variation
+STYLES = list(genre_names())
 GENDERS = ["Any", "Masculine", "Feminine", "Neutral"]
 FIRST = {
     "Masculine": ["Eddie", "Willie", "Calvin", "Leon", "Otis", "Rufus", "Sam", "Isaiah", "Morris", "Ray", "Jesse", "Arthur", "Ellis", "Franklin"],
@@ -26,8 +29,21 @@ NICKNAMES = ["Afterhours", "Midnight", "Blue Note", "Lowdown", "Honeycomb", "Rai
 
 
 def paths():
-    root = Path(os.environ.get("LOCALAPPDATA") or (Path.home() / ".local" / "share")) / APP_NAME
+    """Upgrade without overwriting previous data or deleting legacy directories."""
+    base = Path(os.environ.get("LOCALAPPDATA") or (Path.home() / ".local" / "share"))
+    root = base / APP_NAME
     root.mkdir(parents=True, exist_ok=True)
+    legacy = base / LEGACY_APP_NAME
+    settings_source = legacy / 'settings.json'
+    settings_target = root / 'settings.json'
+    if not settings_target.exists() and settings_source.is_file():
+        shutil.copy2(settings_source, settings_target)
+    db_source = legacy / 'library.sqlite3'
+    db_target = root / 'library.sqlite3'
+    if not db_target.exists() and db_source.is_file():
+        # Backup includes committed WAL transactions. Previous DB remains unchanged.
+        with sqlite3.connect(str(db_source)) as old_db, sqlite3.connect(str(db_target)) as new_db:
+            old_db.backup(new_db)
     return root
 
 
@@ -87,25 +103,24 @@ def parse_names(response: str, count: int) -> list[str]:
     return output
 
 
-def build_prompt(task: str, style: str, artist: Optional[dict], idea: str, count=10, gender="Any") -> str:
+def build_prompt(task: str, style: str, artist: Optional[dict], idea: str, count=10, gender="Any", variation: dict | None = None) -> str:
     context = f"Existing fictional artist: {json.dumps(artist, ensure_ascii=False)}" if artist else "Create new fictional work."
+    twist = variation_prompt(variation or make_variation(style))
     universal = (
-        "You are a skilled blues music creative director. All artists and personal histories are FICTIONAL, "
-        "but the music is rooted in real-world blues traditions, not games or fantasy. "
-        "Avoid borrowing a real living artist's identity, fabricating real achievements, or relying on caricatures. "
-        "Be specific, memorable, emotionally credible, and avoid overusing crossroads, whiskey, midnight, and trains. "
-        "Do not mention Fallout, Goodneighbor, or a post-apocalyptic setting. "
-        f"Primary style: {style}. {context}\nUser direction: {idea or 'Use original ideas.'}\n"
+        "You are an expert music creative director and editor. Artist identities and histories are FICTIONAL; "
+        "the genre references are musically grounded. Avoid imitating named artists, invented historical claims, "
+        "caricatures, recycled hooks, filler, predictable props or scenery. Never default to a game or fantasy theme. "
+        f"{context}\nUser direction (takes priority): {idea or 'Use a fresh concept.'}\n" + twist + "\n"
     )
     instructions = {
-        "Stage names": f"Generate exactly {count} DISTINCT, believable stage names. Presentation: {gender}. Output one name per line, no commentary.",
-        "Artist biography": "Write a fictional artist biography with hometown, era, influences (without imitation), defining voice, instrumentation, career story, and short one-paragraph web bio. Label fictional details as fictional in the internal profile, not as historical claims.",
-        "Artist style guide": "Create a reusable artist style bible: subgenre, vocal timbre, accent guidance without stereotypes, instrumentation, grooves, BPM ranges, lyrical themes, arrangement constraints, production approach, and a reusable Suno-ready style prompt.",
-        "Album concept": "Propose one compelling album title and a cohesive 12-track listing with a one-sentence song concept for each; include sequencing, theme, mood arc, cover-art direction, and a concise website description.",
-        "Three album concepts": "Propose THREE distinct real-world blues albums for a broad audience. Give each an original title, one-paragraph concept, distinct sonic palette and exactly 12 track titles. Make the releases complementary, not repetitive.",
-        "Song lyrics": "Write complete ORIGINAL blues lyrics with labeled sections, a singable hook, believable conversational imagery, and no imitation of a specific copyrighted song. Match this artist's established sound if provided.",
-        "Suno style prompt": "Return a production-ready Suno style prompt specifying instruments, groove, tempo, vocal quality, recording environment, arrangement, and negative constraints. Then a second, shorter alternate version.",
-        "Website promo": "Write a truthful, compelling website artist/album description, SEO page title, meta description, 6 search phrases, and a social caption. Do not assert fabricated real-world credentials.",
+        "Stage names": f"Generate exactly {count} DISTINCT credible stage names suited to {style}. Presentation: {gender}. One name per line.",
+        "Artist biography": "Write a distinct fictional artist biography: origins, sonic identity, vocal character, stage presence, career arc and concise web-ready bio. Keep claims fictional and internally consistent.",
+        "Artist style guide": "Write a reusable style bible: musical conventions, BPM ranges, grooves, lyrical philosophy, vocal delivery, arrangements, live instruments, recording methods, production limits and signature choices. Avoid overly restrictive formulas.",
+        "Album concept": "Propose a distinctive album title and cohesive 12-track sequence with a different song concept for each, narrative mood arc, arrangements, cover direction and one-paragraph website description. Rotate tempo, point-of-view and sonic density among tracks.",
+        "Three album concepts": "Propose THREE contrasting albums in the selected musical family, each with a distinct title, emotional arc, palette and 12 original track titles. Prevent repeated motifs and identical song structures across the three.",
+        "Song lyrics": "Write complete ORIGINAL lyrics with a purposeful hook and expressive delivery, rooted in the selected genre. Use the appropriate section forms, never a genre-neutral template.",
+        "Suno style prompt": "Return a Suno-ready Style of Music description with concrete instruments, tempo, vocal techniques, performance dynamics, studio texture and contrasting Exclude Styles. Reflect the current genre, not a generic blues prompt.",
+        "Website promo": "Write a truthful fictional artist/album promo for the selected genre, a descriptive SEO title, concise meta description, six phrases and social copy. Never invent real credentials or sales history.",
     }
     if task not in instructions:
         raise ValueError("Unknown creative task")
@@ -150,6 +165,10 @@ class Library:
                     id INTEGER PRIMARY KEY, artist_id INTEGER REFERENCES artists(id),
                     task TEXT NOT NULL, content TEXT NOT NULL, created TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS creative_history (
+                    id INTEGER PRIMARY KEY, artist_id INTEGER REFERENCES artists(id),
+                    genre TEXT NOT NULL, variation_json TEXT NOT NULL, created TEXT NOT NULL
+                );
             """)
 
     @contextmanager
@@ -187,15 +206,30 @@ class Library:
         with self._db() as c:
             c.execute("INSERT INTO drafts(artist_id,task,content,created) VALUES (?,?,?,?)", (artist_id, task, content, datetime.now(timezone.utc).isoformat()))
 
+    def recent_variations(self, genre: str, artist_id=None, limit=12):
+        # Reuse only the relevant artist's history; standalone requests have their own history.
+        with self._db() as c:
+            rows = c.execute("SELECT variation_json FROM creative_history WHERE genre=? AND artist_id IS ? ORDER BY id DESC LIMIT ?", (genre, artist_id, limit))
+            return [json.loads(row[0]) for row in rows]
+
+    def record_variation(self, genre: str, artist_id, variation: dict):
+        with self._db() as c:
+            c.execute("INSERT INTO creative_history(artist_id,genre,variation_json,created) VALUES (?,?,?,?)",
+                      (artist_id, genre, json.dumps(variation, ensure_ascii=False), datetime.now(timezone.utc).isoformat()))
+
 
 def load_settings():
     try:
         data = json.loads((paths() / "settings.json").read_text(encoding="utf-8"))
-        return {"url": str(data.get("url", "http://127.0.0.1:11434")), "model": str(data.get("model", ""))}
+        return {"url": str(data.get("url", "http://127.0.0.1:11434")), "model": str(data.get("model", "")),
+                "roles": data.get("roles", {}) if isinstance(data.get("roles", {}), dict) else {},
+                "threshold": data.get("threshold", 85), "max_rewrites": data.get("max_rewrites", 2)}
     except (FileNotFoundError, ValueError, OSError):
-        return {"url": "http://127.0.0.1:11434", "model": ""}
+        return {"url": "http://127.0.0.1:11434", "model": "", "roles": {}, "threshold": 85, "max_rewrites": 2}
 
 
 def save_settings(data):
     target = paths() / "settings.json"
-    target.write_text(json.dumps({"url": data["url"], "model": data["model"]}, indent=2), encoding="utf-8")
+    values = {"url": data["url"], "model": data["model"], "roles": data.get("roles", {}),
+              "threshold": data.get("threshold", 85), "max_rewrites": data.get("max_rewrites", 2)}
+    target.write_text(json.dumps(values, indent=2), encoding="utf-8")

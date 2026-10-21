@@ -1,64 +1,50 @@
 #!/usr/bin/env bash
-# Package an existing PyInstaller --onedir output as a native Debian installer.
+# Package an existing PyInstaller --onedir output as a Debian package.
 set -euo pipefail
-
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-app_name="PlaguesBluesSingerGenie"
-package_name="plagues-blues-singer-genie"
-version="${APP_VERSION:-0.1.1}"
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+name='plagues-music-studio'
+version="${APP_VERSION:-0.3.0}"
 arch="$(dpkg --print-architecture)"
-dist_dir="${DIST_DIR:-${repo_root}/dist/${app_name}}"
-output_dir="${OUTPUT_DIR:-${repo_root}/installer/output-linux}"
-
-if ! [[ "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+~][0-9A-Za-z.-]+)?$ ]]; then
-  echo "APP_VERSION must be a valid Debian-compatible version: ${version}" >&2
-  exit 1
-fi
-
-if [[ ! -x "${dist_dir}/${app_name}" ]]; then
-  echo "No executable at ${dist_dir}/${app_name}. Build with PyInstaller --onedir first." >&2
-  exit 1
-fi
-
-mkdir -p "${output_dir}"
-stage="$(mktemp -d)"
-trap 'rm -rf "${stage}"' EXIT
-mkdir -p "${stage}/DEBIAN" "${stage}/usr/lib/${package_name}" "${stage}/usr/bin" \
-  "${stage}/usr/share/applications" "${stage}/usr/share/doc/${package_name}"
-cp -a "${dist_dir}/." "${stage}/usr/lib/${package_name}/"
+dist="${DIST_DIR:-${root}/dist/PlaguesMusicStudio}"
+out="${OUTPUT_DIR:-${root}/installer/output-linux}"
+[[ "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+~][0-9A-Za-z.-]+)?$ ]] || { echo 'Invalid version' >&2; exit 1; }
+[[ -x "${dist}/PlaguesMusicStudio" ]] || { echo 'Build the executable first' >&2; exit 1; }
+mkdir -p "${out}"
+stage="$(mktemp -d)"; trap 'rm -rf "${stage}"' EXIT
+mkdir -p "${stage}/DEBIAN" "${stage}/usr/lib/${name}" "${stage}/usr/bin" "${stage}/usr/share/applications" "${stage}/usr/share/doc/${name}"
+cp -a "${dist}/." "${stage}/usr/lib/${name}/"
 cat > "${stage}/DEBIAN/control" <<CONTROL
-Package: ${package_name}
+Package: ${name}
+Conflicts: plagues-blues-singer-genie
+Replaces: plagues-blues-singer-genie
 Version: ${version}
 Section: sound
 Priority: optional
 Architecture: ${arch}
-Maintainer: Plagued Mods <noreply@github.com>
+Maintainer: Kaotick Jay <noreply@github.com>
 Depends: libc6 (>= 2.35), libgl1, libegl1, libxkbcommon0, libxcb1, libxcb-cursor0
-Description: Local-first AI blues artist and album creation studio
- PyQt6 desktop app for blues names, biographies, music styles,
- album concepts, lyrics, Suno prompts, and a persistent artist library.
- Connects to a user-configured Ollama service; includes no model weights.
+Description: Local-first blues and metal songwriting and music studio
+ Desktop app featuring offline name creation, local model management,
+ structured AI curation, Suno prompts and optional ACE-Step audio synthesis.
 CONTROL
-cat > "${stage}/usr/bin/plagues-blues-singer-genie" <<'LAUNCHER'
+cat > "${stage}/usr/bin/${name}" <<'SH'
 #!/bin/sh
-exec /usr/lib/plagues-blues-singer-genie/PlaguesBluesSingerGenie "$@"
-LAUNCHER
-chmod 0755 "${stage}/usr/bin/plagues-blues-singer-genie"
-cat > "${stage}/usr/share/applications/plagues-blues-singer-genie.desktop" <<'DESKTOP'
+exec /usr/lib/plagues-music-studio/PlaguesMusicStudio "$@"
+SH
+chmod 0755 "${stage}/usr/bin/${name}"
+cat > "${stage}/usr/share/applications/${name}.desktop" <<'DESKTOP'
 [Desktop Entry]
 Type=Application
-Name=Plague's Blues Singer Genie
-GenericName=Blues Artist Development Studio
-Comment=Generate fictional blues artists, albums, and songs with local AI
-Exec=plagues-blues-singer-genie
+Name=Plague's Music Studio
+GenericName=Blues and Metal Songwriting and Music Studio
+Exec=plagues-music-studio
 Icon=multimedia-player
 Terminal=false
 Categories=AudioVideo;Audio;Utility;
 StartupNotify=true
 DESKTOP
-cp "${repo_root}/LICENSE" "${stage}/usr/share/doc/${package_name}/copyright"
+cp "${root}/LICENSE" "${stage}/usr/share/doc/${name}/copyright"
+cp "${root}/THIRD_PARTY_NOTICES.md" "${stage}/usr/share/doc/${name}/third-party-notices.md"
 find "${stage}/usr" -type d -exec chmod 0755 {} +
-chmod 0755 "${stage}/usr/lib/${package_name}/${app_name}"
-dpkg-deb --build --root-owner-group "${stage}" \
-  "${output_dir}/${package_name}_${version}_${arch}.deb"
-echo "Created ${output_dir}/${package_name}_${version}_${arch}.deb"
+dpkg-deb --build --root-owner-group "${stage}" "${out}/${name}_${version}_${arch}.deb"
+echo "Created ${out}/${name}_${version}_${arch}.deb"
