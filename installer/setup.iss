@@ -1,5 +1,5 @@
 #define AppName "Plague's Music Studio"
-#define AppVersion "0.3.1"
+#define AppVersion "0.3.2"
 #define AppExe "PlaguesMusicStudio.exe"
 [Setup]
 AppId={{BE126C53-2C23-4CC8-BC1B-FBFA92E22B9C}

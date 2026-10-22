@@ -57,7 +57,7 @@ class MainWindow(QMainWindow):
         self.settings = load_settings()
         self.pool = QThreadPool.globalInstance()
         self.workers = []
-        self.setWindowTitle("Plague's Music Studio · v0.3.1")
+        self.setWindowTitle("Plague's Music Studio · v0.3.2")
         self.resize(1150, 770)
         self.tabs = QTabWidget()
         self.setCentralWidget(self.tabs)
@@ -315,13 +315,14 @@ class MainWindow(QMainWindow):
         plan = self.pending_variation or make_variation(style, self.db.recent_variations(style, artist_id))
         self.pending_variation = None
         self.active_variation = (style, artist_id, plan)
+        prior_songs = self.db.recent_song_samples(artist_id) if task == 'Song lyrics' else []
         self.variation_preview.setPlainText(variation_prompt(plan))
         self.review_status.setText("Curation in progress. Research → Draft → Edit → Independent Audit.")
         self.song_approved = False
         self.reviewed_song_digest = None
         self.suno_package = None
         self.busy(lambda: run_curation(task, style, artist, idea, url, roles,
-                                      threshold=threshold, max_rewrites=attempts, variation=plan), self.display_curated)
+                                      threshold=threshold, max_rewrites=attempts, variation=plan, prior_songs=prior_songs), self.display_curated)
 
     def display_curated(self, result):
         if self.active_variation:

@@ -116,6 +116,79 @@ GENRES: dict[str, Genre] = {
         'Keep big hooks and lead guitars, but vary emotional stakes; not every song should celebrate partying or romance.'),
 }
 
+
+# Every genre gets its own songwriting architecture. The profiles above control
+# arrangement and sound; these rotate narrative craft and harmonic vocabulary.
+# They are editorial prompts, not fixed song templates or words to be sung.
+SONGCRAFT: dict[str, dict[str, tuple[str, ...]]] = {
+    'Blues': {
+        'forms': ('three evolving AAB stanzas without a repeated chorus', 'eight-bar narrative with a two-line refrain', 'slow verse/response with an instrumental answer', 'minor-key blues ballad with a late hook'),
+        'hooks': ('a conversational question answered differently each time', 'a two-word phrase gaining meaning in successive stanzas', 'a refrain that changes its final word', 'an understated ironic reversal'),
+        'harmonies': ('I-IV-V with a turnaround', 'minor I-IV-V color', 'eight-bar I-V-IV movement', 'soul-blues dominant ninth colors'),
+    },
+    'Swamp Blues': {
+        'forms': ('hypnotic one-riff verse with sparse answered refrain', 'narrative verses separated by jaw-harp responses', 'half-time stomp with a contrasting bridge', 'six-eight drone with gradual lyrical revelation'),
+        'hooks': ('a short low-register warning', 'a call-and-response against the jaw harp', 'a whispered phrase returning with changed context', 'a stubborn one-line mantra that evolves'),
+        'harmonies': ('one-chord modal drone', 'I-IV swamp vamp', 'minor pentatonic two-chord movement', 'slow I-V turnback'),
+    },
+    'Delta Blues': {
+        'forms': ('unaccompanied rubato AAB storytelling', 'alternating bass couplets with guitar replies', 'eight-bar acoustic narrative with no chorus', 'strophic travelogue with changing endings'),
+        'hooks': ('a guitar answer instead of a sung chorus', 'a repeated opening line with altered payoff', 'a dry spoken-sung observation', 'a question left unanswered until the outro'),
+        'harmonies': ('open-tuning I-IV-V', 'alternating tonic and dominant bass', 'modal slide-guitar drone', 'loose eight-bar blues turnaround'),
+    },
+    'Chicago Blues': {
+        'forms': ('electric 12-bar with stop-time verse', 'walking-bass shuffle with shouted responses', 'slow minor electric blues with instrumental bridge', 'eight-bar nightclub narrative with piano turnaround'),
+        'hooks': ('a band-unison answer to the singer', 'a punchy refrain with a changed final line', 'a wry two-line comeback', 'a harmonica motif carrying the hook'),
+        'harmonies': ('dominant seventh I-IV-V', 'minor Chicago blues changes', 'I-VI-II-V turnaround', 'eight-bar jazz-blues changes'),
+    },
+    'Whiskey Blues': {
+        'forms': ('first-person confession revealing the cost at the end', 'quiet aftermath told in three scenes', 'two-voice argument without a winner', 'slow redemption narrative with almost a cappella ending'),
+        'hooks': ('a plain admission with a double meaning', 'a refrain whose meaning reverses at the end', 'an image of repair instead of self-pity', 'a short unfinished sentence completed later'),
+        'harmonies': ('slow minor twelve-bar', 'soulful I-IV dominant vamp', 'descending minor bass movement', 'restrained eight-bar blues'),
+    },
+    'Smoky Blues': {
+        'forms': ('minimalist lounge ballad with long instrumental spaces', 'late-night three-scene monologue', 'small jazz-blues stanza and sax interlude', 'quiet duet with unequal verses'),
+        'hooks': ('a near-whispered closing phrase', 'a held note answered by sax', 'a lyrical pause that changes the meaning', 'a restrained refrain rather than a big chorus'),
+        'harmonies': ('minor ninth jazz-blues color', 'slow ii-V turnback', 'muted dominant seventh vamp', 'chromatic bass movement over blues form'),
+    },
+    'Metal': {
+        'forms': ('riff-led verse into asymmetric refrain', 'dual-guitar narrative with tempo-changing middle', 'through-composed sections returning to opening motif', 'galloping verse with contrasting half-time bridge'),
+        'hooks': ('a rhythmic chant displaced against the riff', 'a melodic phrase with altered final repetition', 'an instrumental guitar motif as the hook', 'a call-and-response between lead and band'),
+        'harmonies': ('minor pentatonic riff center', 'Phrygian riff with dissonant passing tones', 'natural-minor harmonized guitar movement', 'pedal-tone chromatic riff'),
+    },
+    'Swamp Metal': {
+        'forms': ('slow sludge ritual with a brief faster rupture', 'Southern-groove narrative building to heavy silence', 'doom-laden riff cycle with extended bass bridge', 'two-section heavy swing with instrumental refrain'),
+        'hooks': ('an ominous one-line chant that grows heavier', 'a slide-guitar figure replacing a chorus', 'a barked warning with different responses', 'a bass-and-drum motif emerging after each verse'),
+        'harmonies': ('low minor riff drone', 'tritone sludge movement', 'blues-inflected down-tuned riff', 'Phrygian doom pedal tone'),
+    },
+    'Death Metal': {
+        'forms': ('through-composed technical narrative without pop chorus', 'blastbeat passages interrupted by crushing half-time', 'dissonant instrumental chapters with harsh refrain', 'rapid shifting-meter riff cycle with decisive ending'),
+        'hooks': ('a recurring rhythmic growled declaration', 'a short dissonant riff as the recurring motif', 'a harsh response phrase that changes each return', 'a wordless rhythmic punctuation'),
+        'harmonies': ('chromatic diminished riffing', 'Phrygian dissonance and tritone leaps', 'minor-second pedal movement', 'atonal riff with resolved final root'),
+    },
+    'Glam Metal': {
+        'forms': ('theatrical verse/pre-chorus with unexpected final chorus', 'glam rocker with spoken opening and guitar feature', 'dramatic power ballad resolving to a full-band chorus', 'upbeat riff anthem with lyrical contradiction'),
+        'hooks': ('a soaring melodic title line with a lyrical twist', 'a harmonized call-and-response', 'a swaggering riff answered by vocal', 'a climactic pre-chorus question'),
+        'harmonies': ('major-key guitar hooks with borrowed minor', 'I-bVII-IV rock movement', 'minor verse to major chorus', 'suspended-chord power-ballad lift'),
+    },
+    'Hair Metal': {
+        'forms': ('arena riff with a late key change avoided unless earned', 'six-eight power ballad with restrained first half', 'fast dual-guitar rocker with gang-vocal refrain', 'mid-tempo hard-rock story with extended guitar solo'),
+        'hooks': ('stacked vocal harmonies responding to lead', 'an octave-leaping singalong line', 'a melodic lead-guitar hook before the chorus', 'a refrain that shifts pronouns on the final return'),
+        'harmonies': ('I-bVII-IV stadium-rock lift', 'minor-verse major-chorus contrast', 'six-eight suspended-chord ballad', 'pentatonic hard-rock turnaround'),
+    },
+}
+
+EMOTIONAL_ARCS = (
+    'certainty -> doubt -> a decisive but imperfect choice',
+    'resentment -> uncomfortable recognition -> empathy',
+    'false victory -> consequence -> quiet reckoning',
+    'hope -> reversal -> a new kind of hope',
+    'ordinary comedy -> painful truth -> earned humor',
+    'isolation -> unexpected connection -> unresolved ambiguity',
+    'memory -> confrontation -> changed understanding',
+    'pressure -> refusal -> cost of that refusal',
+)
+
 # Historical controls retain their behavior, while new genre names are canonical.
 ALIASES = {'Chicago Electric': 'Chicago Blues', 'Delta': 'Delta Blues', 'Swamp': 'Swamp Blues',
            'Contemporary': 'Blues', 'Acoustic': 'Delta Blues', 'Soul Blues': 'Smoky Blues',
@@ -170,42 +243,57 @@ def genre_names() -> tuple[str, ...]:
 def make_variation(name: str, recent: tuple[dict, ...] | list[dict] = (), seed: int | None = None) -> dict:
     genre_name = canonical_genre(name)
     profile = GENRES[genre_name]
+    craft = SONGCRAFT[genre_name]
     rng = random.Random(secrets.randbits(64) if seed is None else seed)
-    history = [r for r in recent if isinstance(r, dict)]
-    seen = {(str(x.get('theme')), str(x.get('groove')), str(x.get('arrangement'))) for x in history}
-    last_themes = {str(x.get('theme')) for x in history[:6]}
-    last_grooves = {str(x.get('groove')) for x in history[:2]}
-    winner = None
-    best = -1
-    for _ in range(100):
+    history = [r for r in recent if isinstance(r, dict) and r.get('genre', genre_name) == genre_name]
+    # Prefer unused narrative material first, before optimizing musical variety.
+    fresh_themes = [t for t in THEMES if t not in {h.get('theme') for h in history[:8]}] or list(THEMES)
+    fields = ('theme', 'pov', 'groove', 'instruments', 'vocal', 'arrangement', 'production',
+              'song_form', 'hook_device', 'harmony', 'emotional_arc')
+    weights = dict(theme=80, pov=8, groove=24, instruments=14, vocal=10,
+                   arrangement=18, production=8, song_form=30, hook_device=26,
+                   harmony=13, emotional_arc=22)
+    winner, best = None, -1
+    for _ in range(150):
         sample = dict(
-            genre=genre_name, family=profile.family, theme=rng.choice(THEMES), pov=rng.choice(POVS),
+            genre=genre_name, family=profile.family, theme=rng.choice(fresh_themes), pov=rng.choice(POVS),
             detail=rng.choice(IMAGES), groove=rng.choice(profile.grooves), bpm=rng.randint(*profile.bpm),
             instruments=rng.choice(profile.instruments), vocal=rng.choice(profile.vocals),
             arrangement=rng.choice(profile.arrangements), production=rng.choice(profile.productions),
+            song_form=rng.choice(craft['forms']), hook_device=rng.choice(craft['hooks']),
+            harmony=rng.choice(craft['harmonies']), emotional_arc=rng.choice(EMOTIONAL_ARCS),
             identity=profile.identity, conventions=profile.conventions, exclusions=profile.exclusions,
         )
-        signature = (sample['theme'], sample['groove'], sample['arrangement'])
-        score = (100 if signature not in seen else 0) + (20 if sample['theme'] not in last_themes else 0) + (10 if sample['groove'] not in last_grooves else 0)
+        # Earlier songs have more influence; avoid reusing a complete sonic and lyrical formula.
+        score = 0
+        for field in fields:
+            repeated = next((i for i, h in enumerate(history[:12]) if h.get(field) == sample[field]), None)
+            score += weights[field] if repeated is None else min(repeated, 8) * weights[field] // 12
+        bpm_bucket = sample['bpm'] // 12
+        if bpm_bucket not in {int(h.get('bpm', -100)) // 12 for h in history[:3]}:
+            score += 16
         if score > best:
-            best = score
-            winner = sample
-        if score == 130:
-            break
+            winner, best = sample, score
     return winner
 
 
 def variation_prompt(v: dict) -> str:
     return (f"Genre: {v['genre']} ({v['family']}). Musical identity: {v['identity']}. "
             f"Genre conventions: {v['conventions']}\n"
-            f"Chosen creative twist: {v['theme']}. Point of view: {v['pov']}. "
-            f"Concrete detail (if it fits naturally): {v['detail']}.\n"
-            f"Tempo: around {v['bpm']} BPM; groove: {v['groove']}; instrumental palette: {v['instruments']}; "
-            f"vocal direction: {v['vocal']}; arrangement arc: {v['arrangement']}; "
+            f"Distinct SONG FORM: {v.get('song_form', 'genre-appropriate and variable')}; "
+            f"HOOK MECHANIC: {v.get('hook_device', 'invent a credible new hook')}; "
+            f"HARMONIC PALETTE: {v.get('harmony', 'musically grounded changes')}.\n"
+            f"Specific narrative premise: {v['theme']}. Narrative voice: {v['pov']}. "
+            f"Emotional arc: {v.get('emotional_arc', 'make a meaningful emotional turn')}. "
+            f"Concrete detail (only if natural): {v['detail']}.\n"
+            f"Tempo: around {v['bpm']} BPM; groove: {v['groove']}; instruments: {v['instruments']}; "
+            f"vocal delivery: {v['vocal']}; arrangement: {v['arrangement']}; "
             f"production character: {v['production']}.\n"
-            f"Exclude unsuitable sounds: {v['exclusions']}.\n"
-            "Treat these as independent creative choices, NOT mandatory words to sing. "
-            "Never default to recycled hooks or copy existing songs. Preserve any explicit user brief above optional theme suggestions.")
+            f"EXCLUDE incompatible sounds: {v['exclusions']}.\n"
+            "These are compositional constraints, NOT words to sing or mandatory story props. "
+            "Do not default to midnight, whiskey, crossroads, trains, demons, darkness or fire as generic imagery. "
+            "Create a distinctive opening line, hook cadence and ending for this particular track. "
+            "Never mimic a known performer or a previous track. The user's own brief takes priority over optional motifs.")
 
 
 def variation_json(v: dict) -> str:

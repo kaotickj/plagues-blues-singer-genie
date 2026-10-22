@@ -213,6 +213,39 @@ class Library:
             rows = c.execute("SELECT variation_json FROM creative_history WHERE genre=? AND artist_id IS ? ORDER BY id DESC LIMIT ?", (genre, artist_id, limit))
             return [json.loads(row[0]) for row in rows]
 
+    def recent_song_samples(self, artist_id=None, limit=8):
+        """Read saved track titles and refrain excerpts without loading whole songs into prompts.
+
+        This is a lightweight memory aid, not a music-plagiarism detector.
+        """
+        if not 1 <= limit <= 20:
+            raise ValueError('Song history limit must be between 1 and 20')
+        with self._db() as c:
+            rows = c.execute("SELECT content FROM drafts WHERE task='Song lyrics' AND artist_id IS ? ORDER BY id DESC LIMIT ?",
+                             (artist_id, limit))
+            texts = [r[0] for r in rows]
+        samples = []
+        for raw in texts:
+            title, lyrics = '', ''
+            match = re.search(r'(?m)^TITLE\s*\n([^\r\n]+)', raw)
+            if match:
+                title = match.group(1).strip()
+                lyrics_match = re.search(r'(?ms)^LYRICS\s*\n(.*?)(?=^STYLE OF MUSIC\s*$|\Z)', raw)
+                lyrics = lyrics_match.group(1) if lyrics_match else ''
+            else:
+                try:
+                    record = json.loads(raw)
+                except (ValueError, TypeError):
+                    record = {}
+                if isinstance(record, dict):
+                    title, lyrics = str(record.get('title', '')), str(record.get('lyrics', ''))
+            if not title:
+                continue
+            hook = re.search(r'(?ms)^\[(?:Chorus|Refrain|Hook)(?:[^]\n]*)\]\s*\n(.*?)(?=^\[|\Z)', lyrics)
+            lines = [line.strip() for line in (hook.group(1) if hook else '').splitlines() if line.strip() and not line.lstrip().startswith('[')]
+            samples.append({'title': title[:120], 'hook': ' '.join(lines[:2])[:220]})
+        return samples
+
     def record_variation(self, genre: str, artist_id, variation: dict):
         with self._db() as c:
             c.execute("INSERT INTO creative_history(artist_id,genre,variation_json,created) VALUES (?,?,?,?)",

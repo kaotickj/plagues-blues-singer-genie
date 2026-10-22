@@ -98,9 +98,9 @@ User's creative brief (override optional motifs): {idea or 'Develop a believable
 Return ONLY one valid JSON object with four STRING fields, all nonempty: "title", "lyrics", "style", "exclude_styles". No code fences.
 LYRICS must contain sung words and concise square-bracketed section/instrument/vocal directions, such as [Intro - muted guitar], [Verse 1 - sung low], [Instrumental Break - bass solo], [Outro - cut to silence]. Unbracketed text WILL be sung, so never put non-song instructions in it.
 STRUCTURE: {structure}
-STYLE OF MUSIC field must be a concrete, distinctive genre-correct production brief: instruments, rough BPM {plan['bpm']}, groove, timbre, vocal performance, arrangement and recording texture. Avoid reusing the same phrasing across songs.
+STYLE OF MUSIC field must be a concrete, distinctive genre-correct production brief: instruments, rough BPM {plan['bpm']}, groove, timbre, vocal performance, arrangement and recording texture. Avoid reusing the same phrasing across songs; build the sound around the selected hook device and form.
 EXCLUDE_STYLES field must be comma-separated and describe unwanted audible features appropriate to the selected genre, not a list of lyrics topics: {genre.exclusions}.
-NO performer-name imitation, filler, stock choruses, obligatory whisky/train/crossroads tropes, unrelated subgenres, or game lore. Favor an emotional progression and fresh images over overblown adjective lists."""
+NO performer-name imitation, filler, stock choruses, obligatory whisky/train/crossroads tropes, unrelated subgenres, or game lore. Deliver an original title, hook, opening couplet and distinct final line; do not merely reskin the previous chorus. Favor an emotional progression and fresh images over overblown adjective lists."""
 
 
 def _drop_fences(value: str) -> str:
@@ -128,7 +128,7 @@ def parse_suno(raw: str, tradition: str = "Chicago Electric") -> SunoPackage:
             decoded = {}
     if not isinstance(decoded, dict):
         decoded = {}
-    title = str(decoded.get('title') or 'Untitled Blues').strip()[:140]
+    title = str(decoded.get('title') or 'Untitled Track').strip()[:140]
     lyrics = str(decoded.get('lyrics') or body).strip()
     style = str(decoded.get('style') or default['style']).strip()
     excludes = decoded.get('exclude_styles') or decoded.get('exclude') or default['exclude']

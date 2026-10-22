@@ -112,3 +112,56 @@ class GenreTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class AlbumOriginalityTests(unittest.TestCase):
+    """Sound palette and actual saved-song novelty are separate checks."""
+
+    def test_every_genre_has_distinct_songwriting_choices(self):
+        from genre_presets import SONGCRAFT
+        self.assertEqual(set(SONGCRAFT), set(GENRES))
+        for genre in GENRES:
+            profile = SONGCRAFT[genre]
+            for key in ('forms', 'hooks', 'harmonies'):
+                self.assertGreaterEqual(len(profile[key]), 4)
+            plan = make_variation(genre, seed=33)
+            self.assertIn(plan['song_form'], profile['forms'])
+            self.assertIn(plan['hook_device'], profile['hooks'])
+            self.assertIn(plan['harmony'], profile['harmonies'])
+            self.assertIn(plan['song_form'], variation_prompt(plan))
+
+    def test_album_rotation_avoids_previous_structures(self):
+        recent = []
+        for seed in range(6):
+            plan = make_variation('Chicago Blues', recent, seed=seed)
+            self.assertNotIn(plan['theme'], {x['theme'] for x in recent})
+            if recent:
+                self.assertNotEqual(plan['song_form'], recent[0]['song_form'])
+            recent.insert(0, plan)
+
+    def test_previous_saved_song_refrain_and_title_are_detected(self):
+        from suno import export_suno, SunoPackage
+        from curation import local_checks
+        with tempfile.TemporaryDirectory() as directory:
+            lib = Library(Path(directory) / 'library.db')
+            artist = lib.add_artist('Lucille Wilder', 'Smoky Blues')
+            raw = SunoPackage('A Door Without a Key',
+                              '[Verse 1]\n' + 'A simple line with a different story today.\n' * 12
+                              + '[Chorus]\nI kept the door unlocked for all those years\n'
+                              + 'Then lost the only key I knew\n[Outro]\nGoodbye',
+                              'Smoky Blues with sax', 'EDM')
+            lib.add_draft(artist, 'Song lyrics', export_suno(raw))
+            prior = lib.recent_song_samples(artist)
+            self.assertEqual(prior[0]['title'], raw.title)
+            self.assertIn('unlocked', prior[0]['hook'])
+            self.assertEqual(lib.recent_song_samples(None), [])
+            valid, msg, _ = local_checks('Song lyrics', json.dumps(raw.__dict__), 'Smoky Blues', prior)
+            self.assertFalse(valid)
+            self.assertIn('duplicates', msg)
+
+    def test_new_song_prompt_uses_specific_form_hook_and_harmony(self):
+        plan = make_variation('Death Metal', seed=101)
+        prompt = song_prompt('Death Metal', None, 'personal consequences', plan)
+        self.assertIn(plan['song_form'], prompt)
+        self.assertIn(plan['hook_device'], prompt)
+        self.assertIn(plan['harmony'], prompt)
+        self.assertNotIn('Blues editor', prompt)

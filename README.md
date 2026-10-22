@@ -1,6 +1,6 @@
 # Plague's Music Studio
 
-**Plague's Music Studio** is a local-first, Python/PyQt6 application for composing, curating and producing **original blues and metal**. Version **0.3.1** adds genre-specific writing directions and generation-history controls. No cloud AI API subscription is required.
+**Plague's Music Studio** is a local-first, Python/PyQt6 application for composing, curating and producing **original blues and metal**. Version **0.3.2** adds genre-specific writing directions and generation-history controls. No cloud AI API subscription is required.
 
 ## Genre presets
 
@@ -52,7 +52,7 @@ Both GitHub Actions workflows run the unit tests. Linux additionally smoke-tests
 Install the Linux artifact after extracting the GitHub Actions ZIP:
 
 ```bash
-sudo apt install ./plagues-music-studio_0.3.1_amd64.deb
+sudo apt install ./plagues-music-studio_0.3.2_amd64.deb
 plagues-music-studio
 ```
 
@@ -107,3 +107,17 @@ python -m unittest discover -s tests -v
 ```
 
 Sponsorship details are in `.github/FUNDING.yml`.
+
+## Distinct tracks within a coherent album
+
+Each of the eleven genre profiles now rotates a genre-appropriate **song form**, **hook device**,
+**harmonic palette** and **emotional progression**, in addition to tempo, story, point of view,
+instruments, voice, arrangement and production. The selected direction is previewed with
+**Shuffle creative direction**. Saved variation history helps avoid recent combinations.
+
+When lyrics are generated for a selected artist, the app also consults that artist's
+saved song titles and short chorus/refrain excerpts as **negative examples** for the
+drafting, editing and auditing stages. Exact matching titles or refrains fail the
+quality gate and trigger bounded revision. Keep the same artist selected while building
+an album to use that history. The genre presets are boundaries, not repeated templates;
+a human must still review musical quality and originality.

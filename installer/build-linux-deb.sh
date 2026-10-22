@@ -3,7 +3,7 @@
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 name='plagues-music-studio'
-version="${APP_VERSION:-0.3.1}"
+version="${APP_VERSION:-0.3.2}"
 arch="$(dpkg --print-architecture)"
 dist="${DIST_DIR:-${root}/dist/PlaguesMusicStudio}"
 out="${OUTPUT_DIR:-${root}/installer/output-linux}"
